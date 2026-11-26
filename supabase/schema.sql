@@ -10,6 +10,20 @@ create table if not exists public.clinics (
   created_at timestamptz not null default now()
 );
 
+alter table public.clinics
+  add column if not exists code text,
+  add column if not exists phone text not null default '',
+  add column if not exists address text not null default '',
+  add column if not exists logo_url text,
+  add column if not exists created_at timestamptz not null default now();
+
+update public.clinics
+set code = 'LEGACY-' || upper(replace(id::text, '-', ''))
+where code is null or btrim(code) = '';
+
+alter table public.clinics alter column code set not null;
+create unique index if not exists clinics_code_key on public.clinics (code);
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   clinic_id uuid references public.clinics (id) on delete cascade,
@@ -56,7 +70,31 @@ create table if not exists public.subscriptions (
 );
 
 alter table public.subscriptions
-  add column if not exists current_period_end timestamptz;
+  add column if not exists seat_count integer not null default 1,
+  add column if not exists stripe_customer_id text,
+  add column if not exists stripe_subscription_id text,
+  add column if not exists current_period_end timestamptz,
+  add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.subscriptions'::regclass
+      and conname = 'subscriptions_seat_count_check'
+  ) then
+    alter table public.subscriptions
+      add constraint subscriptions_seat_count_check
+      check (seat_count between 1 and 101);
+  end if;
+end;
+$$;
+
+create unique index if not exists subscriptions_stripe_customer_id_key
+  on public.subscriptions (stripe_customer_id);
+create unique index if not exists subscriptions_stripe_subscription_id_key
+  on public.subscriptions (stripe_subscription_id);
 
 create table if not exists public.registration_attempts (
   ip_hash text not null,
