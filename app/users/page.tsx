@@ -212,7 +212,7 @@ export default function UsersPage() {
                   required
                   minLength={3}
                   maxLength={30}
-                  pattern="[A-Za-z0-9._-]+"
+                  pattern="[A-Za-z0-9._\x2d]+"
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
                   className="w-full rounded-lg border p-2"

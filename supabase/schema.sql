@@ -26,6 +26,23 @@ alter table public.profiles
   add column if not exists clinic_id uuid references public.clinics (id) on delete cascade,
   add column if not exists username text;
 
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'is_active'
+  ) then
+    alter table public.profiles
+      add column is_active boolean not null default true;
+    alter table public.profiles
+      alter column is_active set default false;
+  end if;
+end;
+$$;
+
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
   clinic_id uuid not null unique references public.clinics (id) on delete cascade,

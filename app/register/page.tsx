@@ -265,7 +265,7 @@ export default function RegisterPage() {
                 required
                 minLength={3}
                 maxLength={30}
-                pattern="[A-Za-z0-9._-]+"
+                pattern="[A-Za-z0-9._\x2d]+"
                 value={ownerUsername}
                 onChange={(event) => setOwnerUsername(event.target.value)}
                 className="w-full rounded-lg border p-2"
@@ -341,7 +341,7 @@ export default function RegisterPage() {
                     required
                     minLength={3}
                     maxLength={30}
-                    pattern="[A-Za-z0-9._-]+"
+                    pattern="[A-Za-z0-9._\x2d]+"
                     value={employee.username}
                     onChange={(event) =>
                       updateEmployee(index, "username", event.target.value)
