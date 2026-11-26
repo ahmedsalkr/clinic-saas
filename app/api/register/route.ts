@@ -162,6 +162,12 @@ export async function POST(request: Request) {
   const { data: registrationAllowed, error: rateLimitError } =
     await supabase.rpc("claim_registration_slot", { p_ip_hash: ipHash });
   if (rateLimitError) {
+    console.error("Registration rate-limit RPC failed.", {
+      code: rateLimitError.code,
+      message: rateLimitError.message,
+      details: rateLimitError.details,
+      hint: rateLimitError.hint,
+    });
     return Response.json(
       { error: "تعذر التحقق من طلب التسجيل. حاول لاحقًا." },
       { status: 503 },
