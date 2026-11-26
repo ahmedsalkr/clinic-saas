@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Clinic management platform
 
-## Getting Started
+## Platform setup
 
-First, run the development server:
+1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in its SQL Editor. It creates tenant-scoped clinic, profile, subscription, and record tables, the access policies, and the public logo bucket.
+2. In Supabase Auth, leave email/password authentication enabled. Public client sign-up can remain disabled; registrations create accounts through the server using the service-role key.
+3. In Stripe, create two recurring per-seat prices (monthly and yearly), enable the customer portal for subscription and seat management, and add a webhook at `https://YOUR_DOMAIN/api/webhooks/stripe` for `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`.
+4. Copy `.env.example` to `.env.local` and set the Supabase URL, public anon/publishable key, server-only service-role key, public HTTPS URL, Stripe secret and webhook keys, and both recurring price IDs. Never expose or commit the service-role or Stripe secret keys.
+5. Deploy the app to a public HTTPS host. Set the same environment variables in the hosting provider and restart/redeploy.
+6. Visit `/register` to create a center. The owner chooses a username/password and enters the center's name, phone, address, logo, monthly/yearly plan, and employee accounts. The generated center code is used with employee usernames for login. Checkout is handled by Stripe; access to patient data remains disabled until Stripe confirms an active subscription.
+
+Subscription prices are configured in Stripe rather than hard-coded. Billing is per account seat, including the owner. The owner's billing page opens Stripe's customer portal to renew, change the billing period, and manage seats. Add the configured webhook URL and event types exactly; without the webhook, payment cannot activate access.
+
+For staff created after registration, open **إدارة المستخدمين**. The app enforces the active subscription's seat limit and does not store employee passwords in clinic tables.
+
+## Existing single-clinic data
+
+The schema script assigns existing unscoped records and profiles to a generated legacy center and leaves its subscription `pending`. The existing owner can sign in with their email and password, then complete checkout from **الاشتراك**. Do not assign multiple pre-existing centers to the same legacy dataset.
+
+## Offline use
+
+The service worker is registered only in production:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open the deployed site online and sign in on each device once. Cached pages and that browser's local records remain available offline; new edits queue locally and sync when the app is online again and the subscription is active. User management, account creation, and billing require an internet connection. Test offline behavior against the production server, not `npm run dev`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Local checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run lint
+npm run build
+```

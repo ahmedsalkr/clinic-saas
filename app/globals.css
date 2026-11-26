@@ -5,17 +5,43 @@
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* إعدادات الوضع الليلي */
 @media (prefers-color-scheme: dark) {
+  /* إصلاح ألوان القوائم المنسدلة (Select) في الوضع الليلي */
+  select,
+  option {
+    color: #171717 !important; /* لون النص داكن */
+    background-color: #ffffff !important; /* خلفية بيضاء للقائمة */
+  }
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+  }
+
+  /* إجبار الخلفيات البيضاء على أن تصبح داكنة في الوضع الليلي */
+  .bg-white {
+    background-color: #1f2937 !important;
+  }
+  .bg-gray-100 {
+    background-color: #374151 !important;
+  }
+  .bg-gray-50 {
+    background-color: #4b5563 !important;
+  }
+
+  /* إجبار النصوص الداكنة على أن تصبح فاتحة */
+  .text-gray-800,
+  .text-gray-700,
+  .text-gray-600 {
+    color: #f3f4f6 !important;
+  }
+
+  /* حواف الجداول */
+  .border-gray-300 {
+    border-color: #4b5563 !important;
+  }
+  .border-b {
+    border-color: #4b5563 !important;
   }
 }
 
@@ -23,4 +49,70 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* إعدادات الطباعة */
+@media print {
+  @page {
+    size: 95mm 95mm; /* العرض والارتفاع */
+    margin: 0; /* إزالة الهوامش */
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* إخفاء كل شيء في الصفحة */
+  body * {
+    visibility: hidden;
+  }
+
+  /* إظهار منطقة الطباعة فقط */
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  /* تثبيت منطقة الطباعة في أعلى الصفحة */
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 95mm;
+    height: 95mm;
+    padding: 2mm;
+    font-family: Arial, sans-serif;
+    background-color: white !important; /* خلفية بيضاء */
+    color: black !important; /* نص أسود */
+  }
+}
+
+/* إصلاح لون النص عند تمرير الماوس على الصفوف البيضاء في الوضع الليلي */
+tr:hover td {
+  color: #171717 !important;
+}
+
+tr:hover .text-blue-600 {
+  color: #2563eb !important;
+}
+
+tr:hover .text-red-500 {
+  color: #dc2626 !important;
+}
+
+tr:hover .bg-red-100 {
+  background-color: #fee2e2 !important;
+}
+
+tr:hover .bg-blue-100 {
+  background-color: #dbeafe !important;
+}
+/* جعل جميع القوائم المنسدلة بيضاء حتى في الوضع الليلي */
+select,
+option {
+  background-color: #ffffff !important;
+  color: #171717 !important;
 }
