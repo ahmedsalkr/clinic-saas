@@ -55,6 +55,9 @@ create table if not exists public.subscriptions (
   updated_at timestamptz not null default now()
 );
 
+alter table public.subscriptions
+  add column if not exists current_period_end timestamptz;
+
 create table if not exists public.registration_attempts (
   ip_hash text not null,
   attempted_at timestamptz not null default now()
