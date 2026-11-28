@@ -189,9 +189,6 @@ begin
     update public.profiles set clinic_id = legacy_clinic_id where clinic_id is null;
     update public.clinic_records set clinic_id = legacy_clinic_id where clinic_id is null;
 
-    insert into public.subscriptions (clinic_id, plan_type, status, seat_count)
-    values (legacy_clinic_id, 'monthly', 'pending', 1)
-    on conflict (clinic_id) do nothing;
   end if;
 end;
 $$;
@@ -277,14 +274,11 @@ stable
 security definer
 set search_path = public
 as $$
-  select exists (
+  select auth.uid() is not null and exists (
     select 1
     from public.profiles p
-    join public.subscriptions s on s.clinic_id = p.clinic_id
     where p.id = auth.uid()
       and p.is_active = true
-      and s.status in ('active', 'trialing')
-      and (s.current_period_end is null or s.current_period_end > now())
   );
 $$;
 
@@ -307,17 +301,9 @@ security definer
 set search_path = public
 as $$
   select c.id, c.code, c.name, c.phone, c.address, c.logo_url,
-         case
-           when s.current_period_end is not null
-             and s.current_period_end <= now()
-             and s.status in ('active', 'trialing')
-           then 'expired'
-           else s.status
-         end,
-         s.plan_type, s.seat_count, s.current_period_end
+         'active'::text, 'monthly'::text, 101, null::timestamptz
   from public.profiles p
   join public.clinics c on c.id = p.clinic_id
-  join public.subscriptions s on s.clinic_id = c.id
   where p.id = auth.uid()
     and p.is_active = true
   limit 1;
@@ -367,7 +353,7 @@ drop policy if exists "Active clinic users can read records" on public.clinic_re
 drop policy if exists "Active clinic users can insert records" on public.clinic_records;
 drop policy if exists "Active clinic users can update records" on public.clinic_records;
 drop policy if exists "Subscribed clinic members can read records" on public.clinic_records;
-create policy "Subscribed clinic members can read records"
+create policy "Clinic members can read records"
   on public.clinic_records for select to authenticated
   using (
     clinic_id = public.current_user_clinic_id()
@@ -375,7 +361,8 @@ create policy "Subscribed clinic members can read records"
   );
 
 drop policy if exists "Subscribed clinic members can insert records" on public.clinic_records;
-create policy "Subscribed clinic members can insert records"
+drop policy if exists "Clinic members can insert records" on public.clinic_records;
+create policy "Clinic members can insert records"
   on public.clinic_records for insert to authenticated
   with check (
     clinic_id = public.current_user_clinic_id()
@@ -383,7 +370,8 @@ create policy "Subscribed clinic members can insert records"
   );
 
 drop policy if exists "Subscribed clinic members can update records" on public.clinic_records;
-create policy "Subscribed clinic members can update records"
+drop policy if exists "Clinic members can update records" on public.clinic_records;
+create policy "Clinic members can update records"
   on public.clinic_records for update to authenticated
   using (
     clinic_id = public.current_user_clinic_id()
@@ -409,7 +397,7 @@ declare
   caller_clinic_id uuid := public.current_user_clinic_id();
 begin
   if caller_clinic_id is null or not public.current_user_can_use_clinic() then
-    raise exception 'An active clinic subscription is required.';
+    raise exception 'An active clinic profile is required.';
   end if;
 
   if exists (
@@ -461,15 +449,17 @@ $$;
 revoke all on function public.sync_clinic_records(jsonb) from public, anon;
 grant execute on function public.sync_clinic_records(jsonb) to authenticated;
 
+drop function if exists public.create_clinic_workspace(
+  uuid, text, text, text, text, text, text, integer
+);
+
 create or replace function public.create_clinic_workspace(
   p_owner_id uuid,
   p_code text,
   p_name text,
   p_phone text,
   p_address text,
-  p_username text,
-  p_plan_type text,
-  p_seat_count integer
+  p_username text
 )
 returns uuid
 language plpgsql
@@ -479,13 +469,6 @@ as $$
 declare
   new_clinic_id uuid;
 begin
-  if p_plan_type not in ('monthly', 'yearly')
-    or p_seat_count < 1
-    or p_seat_count > 101
-  then
-    raise exception 'Invalid subscription plan or seat count.';
-  end if;
-
   insert into public.clinics (code, name, phone, address)
   values (p_code, p_name, p_phone, p_address)
   returning id into new_clinic_id;
@@ -501,28 +484,13 @@ begin
     raise exception 'The owner profile could not be found.';
   end if;
 
-  insert into public.subscriptions (
-    clinic_id,
-    plan_type,
-    status,
-    seat_count,
-    current_period_end
-  )
-  values (
-    new_clinic_id,
-    p_plan_type,
-    'trialing',
-    p_seat_count,
-    now() + interval '1 month'
-  );
-
   return new_clinic_id;
 end;
 $$;
 
-revoke all on function public.create_clinic_workspace(uuid, text, text, text, text, text, text, integer)
+revoke all on function public.create_clinic_workspace(uuid, text, text, text, text, text)
   from public, anon, authenticated;
-grant execute on function public.create_clinic_workspace(uuid, text, text, text, text, text, text, integer)
+grant execute on function public.create_clinic_workspace(uuid, text, text, text, text, text)
   to service_role;
 
 create or replace function public.claim_registration_slot(p_ip_hash text)

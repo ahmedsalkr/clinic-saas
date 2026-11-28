@@ -31,7 +31,7 @@ export type WorkspaceAuthorization =
 
 export async function authorizeWorkspace(
   request: Request,
-  options: { adminOnly?: boolean; subscriptionRequired?: boolean } = {},
+  options: { adminOnly?: boolean } = {},
 ): Promise<WorkspaceAuthorization> {
   const accessToken = request.headers
     .get("authorization")
@@ -90,36 +90,6 @@ export async function authorizeWorkspace(
     return {
       response: Response.json({ error: "هذه العملية للمدير فقط." }, { status: 403 }),
     };
-  }
-
-  if (options.subscriptionRequired) {
-    const { data: subscription, error: subscriptionError } = await supabase
-      .from("subscriptions")
-      .select("status, current_period_end")
-      .eq("clinic_id", profile.clinic_id)
-      .maybeSingle();
-    if (subscriptionError) {
-      return {
-        response: Response.json(
-          { error: subscriptionError.message },
-          { status: 500 },
-        ),
-      };
-    }
-
-    const isActive =
-      (subscription?.status === "active" ||
-        subscription?.status === "trialing") &&
-      (!subscription.current_period_end ||
-        new Date(subscription.current_period_end).getTime() > Date.now());
-    if (!isActive) {
-      return {
-        response: Response.json(
-          { error: "يلزم تفعيل الاشتراك أو تجديده للمتابعة." },
-          { status: 402 },
-        ),
-      };
-    }
   }
 
   return {

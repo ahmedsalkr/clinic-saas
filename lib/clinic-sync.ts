@@ -400,13 +400,7 @@ export async function syncClinicData() {
   const workspace = Array.isArray(workspaceData)
     ? workspaceData[0]
     : workspaceData;
-  if (
-    !workspace ||
-    (workspace.subscription_status !== "active" &&
-      workspace.subscription_status !== "trialing")
-  ) {
-    return false;
-  }
+  if (!workspace) return false;
   if (typeof workspace.clinic_id !== "string") {
     throw new Error("The signed-in clinic context is invalid.");
   }

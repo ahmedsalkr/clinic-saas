@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   cacheProfile,
   getCurrentProfile,
-  isSubscriptionActive,
 } from "@/lib/auth";
 import { navigateTo } from "@/lib/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -32,7 +31,6 @@ export default function UsersPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [seatCount, setSeatCount] = useState(1);
 
   const loadUsers = async () => {
     const { data, error: sessionError } =
@@ -61,13 +59,7 @@ export default function UsersPage() {
           navigateTo("/", () => router.replace("/"));
           return;
         }
-        if (!isSubscriptionActive(profile)) {
-          navigateTo("/billing", () => router.replace("/billing"));
-          return;
-        }
-
         cacheProfile(profile);
-        setSeatCount(profile.seatCount);
         try {
           await loadUsers();
         } catch (error) {
@@ -246,14 +238,7 @@ export default function UsersPage() {
           <div className="rounded-xl bg-white p-6 shadow-md md:col-span-2">
             <h2 className="mb-1 text-xl font-bold">قائمة المستخدمين</h2>
             <p className="mb-4 text-sm text-gray-600">
-              المقاعد المستخدمة: {users.length} من {seatCount} —{" "}
-              <button
-                type="button"
-                onClick={() => router.push("/billing")}
-                className="font-semibold text-blue-700 underline"
-              >
-                تعديل عدد المقاعد
-              </button>
+              عدد المستخدمين: {users.length}
             </p>
             {isLoading ? (
               <p>جارٍ تحميل المستخدمين...</p>

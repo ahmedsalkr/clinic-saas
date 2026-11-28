@@ -55,7 +55,6 @@ export default function RegisterPage() {
           ownerEmail: email,
           ownerUsername: username,
           ownerPassword: password,
-          planType: "monthly",
           employees: [],
           logo,
         }),

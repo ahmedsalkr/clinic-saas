@@ -99,17 +99,6 @@ export function getCachedProfile(): AppProfile | null {
   };
 }
 
-export function isSubscriptionActive(profile: AppProfile) {
-  const statusActive =
-    profile.subscriptionStatus === "active" ||
-    profile.subscriptionStatus === "trialing";
-  return (
-    statusActive &&
-    (!profile.subscriptionPeriodEnd ||
-      new Date(profile.subscriptionPeriodEnd).getTime() > Date.now())
-  );
-}
-
 export function cacheProfile(profile: AppProfile) {
   localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
   localStorage.setItem("clinic:active-id", profile.clinicId);

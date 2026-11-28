@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   cacheProfile,
   getCurrentProfile,
-  isSubscriptionActive,
 } from "@/lib/auth";
 import { readLocalRecords, saveLocalRecords } from "@/lib/clinic-sync";
 import { navigateTo } from "@/lib/navigation";
@@ -43,10 +42,6 @@ export default function DoctorsPage() {
         if (!active) return;
         if (!profile) {
           navigateTo("/login", () => router.replace("/login"));
-          return;
-        }
-        if (!isSubscriptionActive(profile)) {
-          navigateTo("/billing", () => router.replace("/billing"));
           return;
         }
         cacheProfile(profile);

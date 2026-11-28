@@ -6,7 +6,6 @@ import {
   cacheProfile,
   getCachedProfile,
   getCurrentProfile,
-  isSubscriptionActive,
   type AppProfile,
 } from "@/lib/auth";
 import {
@@ -67,8 +66,7 @@ export default function LoginPage() {
     getCurrentProfile()
       .then((profile) => {
         if (active && profile) {
-          const destination = isSubscriptionActive(profile) ? "/" : "/billing";
-          navigateTo(destination, () => router.replace(destination));
+          navigateTo("/", () => router.replace("/"));
         }
       })
       .catch((profileError: unknown) => {
@@ -121,8 +119,7 @@ export default function LoginPage() {
       cacheProfile(profile);
       localStorage.setItem("loginTime", new Date().toLocaleTimeString("ar-EG"));
       requestLegacyDataMigration(profile.role);
-      const destination = isSubscriptionActive(profile) ? "/" : "/billing";
-      navigateTo(destination, () => router.replace(destination));
+      navigateTo("/", () => router.replace("/"));
     } catch (loginError) {
       setError(errorMessage(loginError));
     } finally {
@@ -140,11 +137,6 @@ export default function LoginPage() {
       setError("سجّل الدخول عبر الإنترنت مرة واحدة على هذا الجهاز أولًا.");
       return;
     }
-    if (!isSubscriptionActive(profile)) {
-      setError("يلزم تفعيل الاشتراك قبل استخدام النظام دون اتصال.");
-      return;
-    }
-
     navigateTo("/", () => router.push("/"));
   };
 
@@ -216,7 +208,7 @@ export default function LoginPage() {
           </p>
         )}
         <p className="mt-5 text-center text-sm text-gray-600">
-          تريد الاشتراك لمركزك؟{" "}
+          هل تريد إنشاء مساحة لمركزك؟{" "}
           <button
             type="button"
             onClick={() => router.push("/register")}

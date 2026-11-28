@@ -10,7 +10,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function GET(request: Request) {
   const authorization = await authorizeWorkspace(request, {
     adminOnly: true,
-    subscriptionRequired: true,
   });
   if ("response" in authorization) return authorization.response;
 
@@ -38,7 +37,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const authorization = await authorizeWorkspace(request, {
     adminOnly: true,
-    subscriptionRequired: true,
   });
   if ("response" in authorization) return authorization.response;
 
@@ -69,34 +67,6 @@ export async function POST(request: Request) {
 
   const normalizedUsername = username.trim().toLowerCase();
   const supabase = getSupabaseAdminClient();
-  const [{ data: subscription, error: subscriptionError }, { count, error: countError }] =
-    await Promise.all([
-      supabase
-        .from("subscriptions")
-        .select("seat_count")
-        .eq("clinic_id", authorization.workspace.clinicId)
-        .maybeSingle(),
-      supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("clinic_id", authorization.workspace.clinicId),
-    ]);
-  if (subscriptionError || countError) {
-    return Response.json(
-      { error: subscriptionError?.message ?? countError?.message },
-      { status: 500 },
-    );
-  }
-  if (!subscription || (count ?? 0) >= subscription.seat_count) {
-    return Response.json(
-      {
-        error:
-          "وصل المركز إلى عدد الحسابات المشمول في الاشتراك. زد عدد المقاعد من صفحة الاشتراك أولاً.",
-      },
-      { status: 409 },
-    );
-  }
-
   const email = `${normalizedUsername}@${authorization.workspace.clinicId}.staff.clinicapp.invalid`;
   const { data, error } = await supabase.auth.admin.createUser({
     email,
@@ -146,7 +116,6 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const authorization = await authorizeWorkspace(request, {
     adminOnly: true,
-    subscriptionRequired: true,
   });
   if ("response" in authorization) return authorization.response;
 

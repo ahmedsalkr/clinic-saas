@@ -42,7 +42,6 @@ export async function POST(request: Request) {
     ownerEmail,
     ownerUsername,
     ownerPassword,
-    planType,
     employees,
     logo,
   } = body;
@@ -66,12 +65,11 @@ export async function POST(request: Request) {
     typeof ownerPassword !== "string" ||
     ownerPassword.length < 10 ||
     ownerPassword.length > 72 ||
-    !["monthly", "yearly"].includes(String(planType)) ||
     !Array.isArray(employees) ||
     employees.length > 100
   ) {
     return Response.json(
-      { error: "تحقق من بيانات المركز والمالك والخطة والموظفين." },
+      { error: "تحقق من بيانات المركز والمالك والموظفين." },
       { status: 400 },
     );
   }
@@ -208,8 +206,6 @@ export async function POST(request: Request) {
       p_phone: phone.trim(),
       p_address: address.trim(),
       p_username: ownerUsername.trim().toLowerCase(),
-      p_plan_type: planType,
-      p_seat_count: employeeList.length + 1,
     });
     if (error || typeof data !== "string") {
       throw new Error(error?.message ?? "تعذر إنشاء مساحة المركز.");

@@ -6,7 +6,6 @@ import {
   cacheProfile,
   clearCachedProfile,
   getCurrentProfile,
-  isSubscriptionActive,
 } from "@/lib/auth";
 import {
   getStationId,
@@ -86,11 +85,6 @@ export default function Home() {
           navigateTo("/login", () => router.replace("/login"));
           return;
         }
-        if (!isSubscriptionActive(profile)) {
-          navigateTo("/billing", () => router.replace("/billing"));
-          return;
-        }
-
         cacheProfile(profile);
         setDisplayName(profile.fullName);
         setClinicName(profile.clinicName);
@@ -313,12 +307,6 @@ const handleSwap = (patientToSwap: Patient) => {
                     className="text-teal-700 hover:underline font-bold"
                   >
                     بيانات المركز
-                  </button>
-                  <button
-                    onClick={() => navigateTo("/billing", () => router.push("/billing"))}
-                    className="text-indigo-700 hover:underline font-bold"
-                  >
-                    الاشتراك
                   </button>
                 </>
               )}

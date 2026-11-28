@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   cacheProfile,
   getCurrentProfile,
-  isSubscriptionActive,
 } from "@/lib/auth";
 import { readLocalRecords, saveLocalRecords } from "@/lib/clinic-sync";
 import { navigateTo } from "@/lib/navigation";
@@ -74,11 +73,6 @@ export default function AdminDashboard() {
           navigateTo("/login", () => router.replace("/login"));
           return;
         }
-        if (!isSubscriptionActive(profile)) {
-          navigateTo("/billing", () => router.replace("/billing"));
-          return;
-        }
-
         const todayIso = new Date().toISOString().split("T")[0];
         setStartDate(todayIso);
         setEndDate(todayIso);
