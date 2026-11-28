@@ -57,6 +57,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isForgotCodeOpen, setIsForgotCodeOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [isRecoveringCode, setIsRecoveringCode] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -140,6 +144,30 @@ export default function LoginPage() {
     navigateTo("/", () => router.push("/"));
   };
 
+  const handleForgotCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setRecoveryError("");
+    setIsRecoveringCode(true);
+    try {
+      const response = await fetch("/api/auth/forgot-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: recoveryEmail }),
+      });
+      if (!response.ok) {
+        throw new Error("تعذر إكمال الطلب. حاول مرة أخرى.");
+      }
+
+      setIsForgotCodeOpen(false);
+      setRecoveryEmail("");
+      window.alert("إذا كان البريد مسجلاً، فقد تم إرسال رمز المركز إليه.");
+    } catch (recoveryRequestError) {
+      setRecoveryError(errorMessage(recoveryRequestError));
+    } finally {
+      setIsRecoveringCode(false);
+    }
+  };
+
   return (
     <main
       dir="rtl"
@@ -197,6 +225,16 @@ export default function LoginPage() {
         </form>
         <button
           type="button"
+          onClick={() => {
+            setRecoveryError("");
+            setIsForgotCodeOpen(true);
+          }}
+          className="mt-3 w-full text-center text-sm font-semibold text-blue-700 underline"
+        >
+          نسيت رمز المركز؟
+        </button>
+        <button
+          type="button"
           onClick={continueOffline}
           className="mt-3 w-full rounded-lg border border-blue-700 py-2 font-bold text-blue-700"
         >
@@ -218,6 +256,65 @@ export default function LoginPage() {
           </button>
         </p>
       </div>
+      {isForgotCodeOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          dir="rtl"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="forgot-code-title"
+            className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl"
+          >
+            <h2
+              id="forgot-code-title"
+              className="mb-2 text-xl font-bold text-gray-800"
+            >
+              استعادة رمز المركز
+            </h2>
+            <p className="mb-5 text-sm text-gray-600">
+              أدخل البريد الإلكتروني المسجل لإرسال رمز المركز إليه.
+            </p>
+            <form onSubmit={handleForgotCode} className="space-y-4">
+              <label className="block">
+                <span className="mb-1 block font-semibold text-gray-700">
+                  البريد الإلكتروني
+                </span>
+                <input
+                  type="email"
+                  required
+                  maxLength={254}
+                  autoComplete="email"
+                  value={recoveryEmail}
+                  onChange={(event) => setRecoveryEmail(event.target.value)}
+                  className="w-full rounded-lg border p-2"
+                />
+              </label>
+              {recoveryError && (
+                <p role="alert" className="text-sm text-red-700">
+                  {recoveryError}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={isRecoveringCode}
+                className="w-full rounded-lg bg-blue-700 py-2 font-bold text-white disabled:opacity-50"
+              >
+                {isRecoveringCode ? "جارٍ إرسال الطلب..." : "إرسال رمز المركز"}
+              </button>
+              <button
+                type="button"
+                disabled={isRecoveringCode}
+                onClick={() => setIsForgotCodeOpen(false)}
+                className="w-full rounded-lg border py-2 font-semibold text-gray-700 disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

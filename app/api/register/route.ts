@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { sendClinicCodeEmail } from "@/lib/email";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 interface EmployeeInput {
@@ -268,9 +269,16 @@ export async function POST(request: Request) {
       if (profileError) throw new Error(`تعذر تفعيل حساب الموظف: ${profileError.message}`);
     }
 
+    await sendClinicCodeEmail(
+      ownerEmail.trim().toLowerCase(),
+      clinicName.trim(),
+      clinicCode,
+    );
+
     return Response.json(
       {
         ok: true,
+        message: "تم إنشاء المركز وإرسال رمز الدخول إلى بريد المالك الإلكتروني.",
         clinicCode,
         ownerUsername: ownerUsername.trim().toLowerCase(),
         employeeCount: employeeList.length,

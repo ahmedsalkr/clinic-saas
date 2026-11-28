@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface RegistrationResponse {
   error?: string;
+  message?: string;
   clinicCode?: string;
 }
 
@@ -64,7 +65,9 @@ export default function RegisterPage() {
         throw new Error(result.error || "لم يتم إكمال تسجيل المركز.");
       }
 
-      alert(`تم إنشاء المركز بنجاح. رمز المركز هو: ${result.clinicCode}`);
+      alert(
+        `${result.message || "تم إنشاء المركز بنجاح."}\nرمز المركز: ${result.clinicCode}`,
+      );
       router.push("/login");
     } catch (error: unknown) {
       setErrorMessage(
