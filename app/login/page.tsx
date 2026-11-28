@@ -95,34 +95,22 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      const supabase = getSupabaseClient();
       const identity = usernameOrEmail.trim();
-      if (identity.includes("@")) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: identity,
-          password,
-        });
-        if (signInError) throw signInError;
-      } else {
-        const response = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clinicCode, username: identity, password }),
-        });
-        const result = (await response.json()) as LoginResponse;
-        if (
-          !response.ok ||
-          !result.accessToken ||
-          !result.refreshToken
-        ) {
-          throw new Error(result.error || "رمز المركز أو بيانات الدخول غير صحيحة.");
-        }
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: result.accessToken,
-          refresh_token: result.refreshToken,
-        });
-        if (sessionError) throw sessionError;
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clinicCode, identity, password }),
+      });
+      const result = (await response.json()) as LoginResponse;
+      if (!response.ok || !result.accessToken || !result.refreshToken) {
+        throw new Error(result.error || "رمز المركز أو بيانات الدخول غير صحيحة.");
       }
+      const supabase = getSupabaseClient();
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
+      });
+      if (sessionError) throw sessionError;
 
       const profile = await getCurrentProfile();
       if (!profile) {
@@ -176,6 +164,7 @@ export default function LoginPage() {
           <label className="block">
             <span className="mb-1 block font-semibold text-gray-700">رمز المركز</span>
             <input
+              required
               value={clinicCode}
               onChange={(event) => setClinicCode(event.target.value.toUpperCase())}
               className="w-full rounded-lg border p-2"

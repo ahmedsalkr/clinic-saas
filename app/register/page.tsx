@@ -2,17 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabase";
 
-interface EmployeeDraft {
-  fullName: string;
-  username: string;
-  password: string;
-}
-
-interface ApiResult {
+interface RegistrationResponse {
   error?: string;
-  url?: string;
   clinicCode?: string;
 }
 
@@ -25,46 +17,25 @@ async function fileToBase64(file: File) {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [newClinicCode, setNewClinicCode] = useState("");
+
+  // بيانات المركز
   const [clinicName, setClinicName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [ownerName, setOwnerName] = useState("");
-  const [ownerEmail, setOwnerEmail] = useState("");
-  const [ownerUsername, setOwnerUsername] = useState("");
-  const [ownerPassword, setOwnerPassword] = useState("");
-  const [planType, setPlanType] = useState<"monthly" | "yearly">("monthly");
-  const [employees, setEmployees] = useState<EmployeeDraft[]>([]);
 
-  const addEmployee = () => {
-    if (employees.length >= 100) return;
-    setEmployees((current) => [
-      ...current,
-      { fullName: "", username: "", password: "" },
-    ]);
-  };
+  // بيانات المدير (صاحب المركز)
+  const [adminName, setAdminName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
 
-  const updateEmployee = (
-    index: number,
-    field: keyof EmployeeDraft,
-    value: string,
-  ) => {
-    setEmployees((current) =>
-      current.map((employee, employeeIndex) =>
-        employeeIndex === index
-          ? { ...employee, [field]: value }
-          : employee,
-      ),
-    );
-  };
-
-  const handleRegister = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setIsSubmitting(true);
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMessage("");
+    setLoading(true);
 
     try {
       const logo = logoFile
@@ -73,332 +44,102 @@ export default function RegisterPage() {
             base64: await fileToBase64(logoFile),
           }
         : undefined;
-      const registrationResponse = await fetch("/api/register", {
+      const response = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clinicName,
           phone,
           address,
-          ownerName,
-          ownerEmail,
-          ownerUsername,
-          ownerPassword,
-          planType,
-          employees,
+          ownerName: adminName,
+          ownerEmail: email,
+          ownerUsername: username,
+          ownerPassword: password,
+          planType: "monthly",
+          employees: [],
           logo,
         }),
       });
-      const registration = (await registrationResponse.json()) as ApiResult;
-      if (!registrationResponse.ok || !registration.clinicCode) {
-        throw new Error(registration.error || "تعذر إنشاء حساب المركز.");
-      }
-      sessionStorage.setItem(
-        "clinic-registration-code",
-        registration.clinicCode,
-      );
-      setNewClinicCode(registration.clinicCode);
-
-      const loginResponse = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clinicCode: registration.clinicCode,
-          username: ownerUsername,
-          password: ownerPassword,
-        }),
-      });
-      const login = (await loginResponse.json()) as ApiResult & {
-        accessToken?: string;
-        refreshToken?: string;
-      };
-      if (
-        !loginResponse.ok ||
-        !login.accessToken ||
-        !login.refreshToken
-      ) {
-        throw new Error(login.error || "تم إنشاء المركز؛ تابع بتسجيل الدخول.");
+      const result = (await response.json()) as RegistrationResponse;
+      if (!response.ok || !result.clinicCode) {
+        throw new Error(result.error || "لم يتم إكمال تسجيل المركز.");
       }
 
-      const { error: sessionError } = await getSupabaseClient().auth.setSession({
-        access_token: login.accessToken,
-        refresh_token: login.refreshToken,
-      });
-      if (sessionError) throw sessionError;
-
-      const checkoutResponse = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${login.accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          planType,
-          seatCount: employees.length + 1,
-        }),
-      });
-      const checkout = (await checkoutResponse.json()) as ApiResult;
-      if (!checkoutResponse.ok || !checkout.url) {
-        sessionStorage.setItem(
-          "clinic-billing-message",
-          checkout.error || "تابع إلى صفحة الاشتراك لإكمال التفعيل.",
-        );
-        router.push("/billing");
-        return;
-      }
-
-      window.location.assign(checkout.url);
-    } catch (error) {
+      alert(`تم إنشاء المركز بنجاح. رمز المركز هو: ${result.clinicCode}`);
+      router.push("/login");
+    } catch (error: unknown) {
       setErrorMessage(
-        error instanceof Error ? error.message : "تعذر إكمال التسجيل.",
+        error instanceof Error ? error.message : "حدث خطأ أثناء التسجيل.",
       );
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <main
-      dir="rtl"
-      className="min-h-screen bg-gray-100 px-4 py-8"
-    >
-      <div className="mx-auto max-w-3xl rounded-xl bg-white p-6 shadow-xl sm:p-8">
-        <h1 className="mb-2 text-center text-2xl font-bold text-blue-700">
-          ابدأ استخدام نظام إدارة المركز
-        </h1>
-        <p className="mb-6 text-center text-gray-600">
-          أدخل بيانات منشأتك، ثم أنشئ حسابات المالك والموظفين.
-        </p>
+    <div dir="rtl" className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-lg">
+        <h1 className="text-2xl font-bold text-center text-blue-600 mb-6">تسجيل مركز طبي جديد</h1>
 
-        {errorMessage && (
-          <div role="alert" className="mb-5 rounded-lg bg-amber-100 p-3 text-amber-900">
-            {errorMessage}
-            {newClinicCode && (
-              <p className="mt-2">
-                رمز المركز: <strong dir="ltr">{newClinicCode}</strong>
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              className="mr-2 font-bold underline"
-            >
-              تسجيل الدخول
-            </button>
+        <form onSubmit={handleRegister} className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-700 border-b pb-2">بيانات المركز</h2>
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">اسم المركز</label>
+            <input type="text" required minLength={2} maxLength={120} value={clinicName} onChange={(e) => setClinicName(e.target.value)} className="w-full border rounded-lg p-2" placeholder="مثال: مركز الشفاء" />
           </div>
-        )}
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">رقم الهاتف</label>
+            <input type="tel" required minLength={5} maxLength={40} value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border rounded-lg p-2" placeholder="01xxxxxxxxx" />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">العنوان</label>
+            <input type="text" maxLength={240} value={address} onChange={(e) => setAddress(e.target.value)} className="w-full border rounded-lg p-2" placeholder="المدينة، الشارع" />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">شعار المركز</label>
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setLogoFile(e.target.files?.[0] || null)} className="w-full border rounded-lg p-2" />
+          </div>
 
-        <form onSubmit={handleRegister} className="space-y-7">
-          <section className="space-y-4">
-            <h2 className="border-b pb-2 text-lg font-bold">بيانات المركز</h2>
-            <label className="block">
-              <span className="mb-1 block font-semibold">اسم المركز أو المستشفى</span>
-              <input
-                required
-                maxLength={120}
-                value={clinicName}
-                onChange={(event) => setClinicName(event.target.value)}
-                className="w-full rounded-lg border p-2"
-                placeholder="مركز الشفاء"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block font-semibold">هاتف المنشأة</span>
-              <input
-                required
-                type="tel"
-                maxLength={40}
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                className="w-full rounded-lg border p-2"
-                autoComplete="tel"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block font-semibold">العنوان</span>
-              <input
-                maxLength={240}
-                value={address}
-                onChange={(event) => setAddress(event.target.value)}
-                className="w-full rounded-lg border p-2"
-                autoComplete="street-address"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block font-semibold">شعار المنشأة (حتى 2 ميجابايت)</span>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
-                className="w-full rounded-lg border p-2"
-              />
-            </label>
-          </section>
+          <h2 className="text-lg font-semibold text-gray-700 border-b pb-2 mt-6">بيانات المدير (صاحب المركز)</h2>
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">الاسم الكامل</label>
+            <input type="text" required minLength={2} maxLength={120} value={adminName} onChange={(e) => setAdminName(e.target.value)} className="w-full border rounded-lg p-2" placeholder="د. أحمد محمد" />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">اسم المستخدم (للدخول)</label>
+            <input
+              type="text"
+              required
+              minLength={3}
+              maxLength={30}
+              value={username}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""),
+                )
+              }
+              className="w-full border rounded-lg p-2"
+              placeholder="مثال: ahmed"
+              pattern="[A-Za-z0-9._-]{3,30}"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">البريد الإلكتروني</label>
+            <input type="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded-lg p-2" placeholder="email@example.com" />
+          </div>
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">كلمة المرور</label>
+            <input type="password" required minLength={10} maxLength={72} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border rounded-lg p-2" placeholder="********" />
+          </div>
 
-          <section className="space-y-4">
-            <h2 className="border-b pb-2 text-lg font-bold">حساب صاحب المركز</h2>
-            <label className="block">
-              <span className="mb-1 block font-semibold">الاسم الكامل</span>
-              <input
-                required
-                maxLength={120}
-                value={ownerName}
-                onChange={(event) => setOwnerName(event.target.value)}
-                className="w-full rounded-lg border p-2"
-                autoComplete="name"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block font-semibold">البريد الإلكتروني</span>
-              <input
-                required
-                type="email"
-                value={ownerEmail}
-                onChange={(event) => setOwnerEmail(event.target.value)}
-                className="w-full rounded-lg border p-2"
-                autoComplete="email"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block font-semibold">اسم المستخدم</span>
-              <input
-                required
-                minLength={3}
-                maxLength={30}
-                pattern="[A-Za-z0-9._\x2d]+"
-                value={ownerUsername}
-                onChange={(event) => setOwnerUsername(event.target.value)}
-                className="w-full rounded-lg border p-2"
-                autoComplete="username"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block font-semibold">كلمة المرور (10 أحرف على الأقل)</span>
-              <input
-                required
-                type="password"
-                minLength={10}
-                value={ownerPassword}
-                onChange={(event) => setOwnerPassword(event.target.value)}
-                className="w-full rounded-lg border p-2"
-                autoComplete="new-password"
-              />
-            </label>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="border-b pb-2 text-lg font-bold">الاشتراك والموظفون</h2>
-            <label className="block">
-              <span className="mb-1 block font-semibold">نوع الاشتراك</span>
-              <select
-                value={planType}
-                onChange={(event) =>
-                  setPlanType(event.target.value as "monthly" | "yearly")
-                }
-                className="w-full rounded-lg border p-2"
-              >
-                <option value="monthly">اشتراك شهري</option>
-                <option value="yearly">اشتراك سنوي</option>
-              </select>
-            </label>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold">حسابات الموظفين: {employees.length}</p>
-                <p className="text-sm text-gray-600">
-                  أضف حسابًا لكل موظف؛ يختار صاحب المركز اسم المستخدم وكلمة المرور.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={employees.length >= 100}
-                onClick={addEmployee}
-                className="rounded-lg border border-blue-600 px-4 py-2 font-semibold text-blue-700 disabled:opacity-50"
-              >
-                إضافة موظف
-              </button>
-            </div>
-            {employees.map((employee, index) => (
-              <fieldset
-                key={index}
-                className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2"
-              >
-                <legend className="px-2 font-semibold">الموظف {index + 1}</legend>
-                <label>
-                  <span className="mb-1 block">الاسم</span>
-                  <input
-                    required
-                    value={employee.fullName}
-                    onChange={(event) =>
-                      updateEmployee(index, "fullName", event.target.value)
-                    }
-                    className="w-full rounded-lg border p-2"
-                    autoComplete="off"
-                  />
-                </label>
-                <label>
-                  <span className="mb-1 block">اسم المستخدم</span>
-                  <input
-                    required
-                    minLength={3}
-                    maxLength={30}
-                    pattern="[A-Za-z0-9._\x2d]+"
-                    value={employee.username}
-                    onChange={(event) =>
-                      updateEmployee(index, "username", event.target.value)
-                    }
-                    className="w-full rounded-lg border p-2"
-                    autoComplete="off"
-                  />
-                </label>
-                <label>
-                  <span className="mb-1 block">كلمة المرور (10 أحرف على الأقل)</span>
-                  <input
-                    required
-                    type="password"
-                    minLength={10}
-                    value={employee.password}
-                    onChange={(event) =>
-                      updateEmployee(index, "password", event.target.value)
-                    }
-                    className="w-full rounded-lg border p-2"
-                    autoComplete="new-password"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setEmployees((current) =>
-                      current.filter((_, employeeIndex) => employeeIndex !== index),
-                    )
-                  }
-                  className="self-end text-right text-red-600 hover:underline"
-                >
-                  إزالة الموظف
-                </button>
-              </fieldset>
-            ))}
-          </section>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-lg bg-blue-700 py-3 font-bold text-white disabled:opacity-50"
-          >
-            {isSubmitting ? "جارٍ إنشاء المركز والحسابات..." : "إنشاء المركز والمتابعة للدفع"}
+          {errorMessage && (
+            <p role="alert" className="text-sm text-red-700">{errorMessage}</p>
+          )}
+          <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg mt-4 transition">
+            {loading ? "جاري التسجيل..." : "تسجيل المركز"}
           </button>
         </form>
-
-        <p className="mt-5 text-center text-sm text-gray-600">
-          لديك حساب؟{" "}
-          <button
-            type="button"
-            onClick={() => router.push("/login")}
-            className="font-semibold text-blue-700 underline"
-          >
-            تسجيل الدخول
-          </button>
-        </p>
       </div>
-    </main>
+    </div>
   );
 }

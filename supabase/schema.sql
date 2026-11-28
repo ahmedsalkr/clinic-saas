@@ -38,7 +38,34 @@ create table if not exists public.profiles (
 
 alter table public.profiles
   add column if not exists clinic_id uuid references public.clinics (id) on delete cascade,
+  add column if not exists email text,
   add column if not exists username text;
+
+alter table public.profiles
+  add column if not exists full_name text not null default '',
+  add column if not exists role text not null default 'employee',
+  add column if not exists created_at timestamptz not null default now();
+
+update public.profiles p
+set email = coalesce(u.email, '')
+from auth.users u
+where u.id = p.id and p.email is null;
+update public.profiles set email = '' where email is null;
+alter table public.profiles
+  alter column email set default '',
+  alter column email set not null,
+  alter column clinic_id drop not null,
+  alter column full_name set default '',
+  alter column role set default 'employee',
+  alter column created_at set default now();
+
+update public.profiles set full_name = '' where full_name is null;
+update public.profiles set role = 'employee' where role is null;
+update public.profiles set created_at = now() where created_at is null;
+alter table public.profiles
+  alter column full_name set not null,
+  alter column role set not null,
+  alter column created_at set not null;
 
 do $$
 begin
@@ -56,6 +83,10 @@ begin
   end if;
 end;
 $$;
+update public.profiles set is_active = false where is_active is null;
+alter table public.profiles
+  alter column is_active set default false,
+  alter column is_active set not null;
 
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -75,6 +106,23 @@ alter table public.subscriptions
   add column if not exists stripe_subscription_id text,
   add column if not exists current_period_end timestamptz,
   add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'subscriptions'
+      and column_name = 'end_date'
+  ) then
+    alter table public.subscriptions alter column end_date drop not null;
+  end if;
+end;
+$$;
+
+create unique index if not exists subscriptions_clinic_id_key
+  on public.subscriptions (clinic_id);
 
 do $$
 begin
@@ -129,8 +177,13 @@ begin
   if exists (select 1 from public.profiles where clinic_id is null)
     or exists (select 1 from public.clinic_records where clinic_id is null)
   then
-    insert into public.clinics (code, name)
-    values ('LEGACY-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)), 'المركز الحالي')
+    insert into public.clinics (code, name, phone, address)
+    values (
+      'LEGACY-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
+      'المركز الحالي',
+      '',
+      ''
+    )
     returning id into legacy_clinic_id;
 
     update public.profiles set clinic_id = legacy_clinic_id where clinic_id is null;
@@ -169,12 +222,14 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, username, full_name)
+  insert into public.profiles (id, email, username, full_name, role, is_active)
   values (
     new.id,
     coalesce(new.email, ''),
     coalesce(new.raw_user_meta_data ->> 'username', 'user-' || substr(replace(new.id::text, '-', ''), 1, 12)),
-    coalesce(new.raw_user_meta_data ->> 'full_name', '')
+    coalesce(new.raw_user_meta_data ->> 'full_name', ''),
+    'employee',
+    false
   )
   on conflict (id) do update
   set email = excluded.email;
@@ -446,8 +501,20 @@ begin
     raise exception 'The owner profile could not be found.';
   end if;
 
-  insert into public.subscriptions (clinic_id, plan_type, status, seat_count)
-  values (new_clinic_id, p_plan_type, 'pending', p_seat_count);
+  insert into public.subscriptions (
+    clinic_id,
+    plan_type,
+    status,
+    seat_count,
+    current_period_end
+  )
+  values (
+    new_clinic_id,
+    p_plan_type,
+    'trialing',
+    p_seat_count,
+    now() + interval '1 month'
+  );
 
   return new_clinic_id;
 end;

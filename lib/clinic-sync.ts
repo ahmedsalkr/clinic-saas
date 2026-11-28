@@ -448,6 +448,7 @@ export async function syncClinicData() {
     const { data, error } = await supabase
       .from("clinic_records")
       .select("collection, record_id, payload, updated_at, deleted_at")
+      .eq("clinic_id", workspace.clinic_id)
       .range(start, start + pageSize - 1);
     if (error) throw error;
 

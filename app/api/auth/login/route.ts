@@ -1,87 +1,130 @@
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
+const invalidCredentials = "رمز المركز أو بيانات الدخول غير صحيحة.";
+
+function jsonResponse(body: object, status = 200) {
+  return Response.json(body, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
 export async function POST(request: Request) {
-  let body: unknown;
+  let rawBody: string;
   try {
-    body = await request.json();
+    rawBody = await request.text();
   } catch {
-    return Response.json({ error: "بيانات الدخول غير صالحة." }, { status: 400 });
+    return jsonResponse({ error: "بيانات الدخول غير صالحة." }, 400);
+  }
+  if (rawBody.length > 8 * 1024) {
+    return jsonResponse({ error: "بيانات الدخول كبيرة جداً." }, 413);
   }
 
-  if (!body || typeof body !== "object") {
-    return Response.json({ error: "بيانات الدخول غير صالحة." }, { status: 400 });
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return jsonResponse({ error: "بيانات الدخول غير صالحة." }, 400);
   }
-  const { clinicCode, username, password } = body as Record<string, unknown>;
+  if (!isRecord(body)) {
+    return jsonResponse({ error: "بيانات الدخول غير صالحة." }, 400);
+  }
+
+  const clinicCode = body.clinicCode;
+  const identity = body.identity ?? body.username;
+  const password = body.password;
   if (
     typeof clinicCode !== "string" ||
-    typeof username !== "string" ||
+    typeof identity !== "string" ||
     typeof password !== "string" ||
-    !/^[a-z0-9-]{4,24}$/i.test(clinicCode.trim()) ||
-    !/^[a-z0-9._-]{3,30}$/i.test(username.trim())
+    password.length === 0 ||
+    password.length > 72 ||
+    !/^[a-z0-9-]{4,24}$/i.test(clinicCode.trim())
   ) {
-    return Response.json({ error: "أدخل رمز المركز واسم المستخدم وكلمة المرور." }, { status: 400 });
+    return jsonResponse({ error: "أدخل رمز المركز وبيانات الدخول." }, 400);
+  }
+
+  const normalizedIdentity = identity.trim().toLowerCase();
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedIdentity);
+  const isUsername = /^[a-z0-9._-]{3,30}$/i.test(normalizedIdentity);
+  if (
+    normalizedIdentity.length > 254 ||
+    (!isEmail && !isUsername)
+  ) {
+    return jsonResponse({ error: "أدخل بريداً إلكترونياً أو اسم مستخدم صالحاً." }, 400);
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) {
-    return Response.json({ error: "إعدادات Supabase غير مكتملة." }, { status: 503 });
+    return jsonResponse({ error: "إعدادات Supabase غير مكتملة." }, 503);
   }
 
   let admin;
   try {
     admin = getSupabaseAdminClient();
   } catch (error) {
-    return Response.json(
+    return jsonResponse(
       {
         error:
-          error instanceof Error ? error.message : "إعدادات Supabase غير مكتملة.",
+          error instanceof Error
+            ? error.message
+            : "إعدادات Supabase غير مكتملة.",
       },
-      { status: 503 },
+      503,
     );
   }
+
   const { data: clinic, error: clinicError } = await admin
     .from("clinics")
     .select("id")
     .eq("code", clinicCode.trim().toUpperCase())
     .maybeSingle();
   if (clinicError) {
-    return Response.json({ error: clinicError.message }, { status: 500 });
+    console.error("Clinic lookup failed during login.", clinicError);
+    return jsonResponse({ error: "تعذر التحقق من بيانات الدخول." }, 500);
   }
   if (!clinic) {
-    return Response.json({ error: "رمز المركز أو بيانات الدخول غير صحيحة." }, { status: 401 });
+    return jsonResponse({ error: invalidCredentials }, 401);
   }
 
+  const identityColumn = isEmail ? "email" : "username";
   const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("email, is_active")
     .eq("clinic_id", clinic.id)
-    .eq("username", username.trim().toLowerCase())
+    .eq(identityColumn, normalizedIdentity)
     .maybeSingle();
   if (profileError) {
-    return Response.json({ error: profileError.message }, { status: 500 });
+    console.error("Profile lookup failed during login.", profileError);
+    return jsonResponse({ error: "تعذر التحقق من بيانات الدخول." }, 500);
   }
-  if (!profile?.is_active) {
-    return Response.json({ error: "رمز المركز أو بيانات الدخول غير صحيحة." }, { status: 401 });
+  if (!profile?.is_active || !profile.email) {
+    return jsonResponse({ error: invalidCredentials }, 401);
   }
 
   const authClient = createClient(url, anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
   });
   const { data, error } = await authClient.auth.signInWithPassword({
     email: profile.email,
     password,
   });
   if (error || !data.session) {
-    return Response.json({ error: "رمز المركز أو بيانات الدخول غير صحيحة." }, { status: 401 });
+    return jsonResponse({ error: invalidCredentials }, 401);
   }
 
-  return Response.json(
-    {
-      accessToken: data.session.access_token,
-      refreshToken: data.session.refresh_token,
-    },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  return jsonResponse({
+    accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token,
+  });
 }

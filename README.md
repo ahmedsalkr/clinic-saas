@@ -7,7 +7,7 @@
 3. In Stripe, create two recurring per-seat prices (monthly and yearly), enable the customer portal for subscription and seat management, and add a webhook at `https://YOUR_DOMAIN/api/webhooks/stripe` for `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`.
 4. Copy `.env.example` to `.env.local` and set the Supabase URL, public anon/publishable key, server-only service-role key, public HTTPS URL, Stripe secret and webhook keys, and both recurring price IDs. Never expose or commit the service-role or Stripe secret keys.
 5. Deploy the app to a public HTTPS host. Set the same environment variables in the hosting provider and restart/redeploy.
-6. Visit `/register` to create a center. The owner chooses a username/password and enters the center's name, phone, address, logo, monthly/yearly plan, and employee accounts. The generated center code is used with employee usernames for login. Checkout is handled by Stripe; access to patient data remains disabled until Stripe confirms an active subscription.
+6. Visit `/register` to create a center. The owner chooses a username/password and enters the center's name, phone, and address. The generated center code is used with the owner's email or username and employee usernames for login. New centers receive a one-month trial; Stripe checkout is available to manage the subscription after the trial.
 
 Subscription prices are configured in Stripe rather than hard-coded. Billing is per account seat, including the owner. The owner's billing page opens Stripe's customer portal to renew, change the billing period, and manage seats. Add the configured webhook URL and event types exactly; without the webhook, payment cannot activate access.
 
@@ -15,7 +15,7 @@ For staff created after registration, open **إدارة المستخدمين**. 
 
 ## Existing single-clinic data
 
-The schema script assigns existing unscoped records and profiles to a generated legacy center and leaves its subscription `pending`. The existing owner can sign in with their email and password, then complete checkout from **الاشتراك**. Do not assign multiple pre-existing centers to the same legacy dataset.
+The schema script assigns existing unscoped records and profiles to a generated legacy center and leaves its subscription `pending`. Existing owners can sign in with their clinic code and email or username, then complete checkout from the billing page. Do not assign multiple pre-existing centers to the same legacy dataset.
 
 ## Offline use
 
